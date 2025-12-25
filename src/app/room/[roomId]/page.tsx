@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useUsername } from "@/hooks/use-username";
@@ -13,6 +13,8 @@ export default function Page() {
   const router = useRouter();
   const params = useParams();
   const roomId = params.roomId as string;
+
+  const queryClient = useQueryClient();
 
   const { username } = useUsername();
 
@@ -64,7 +66,7 @@ export default function Page() {
     return () => clearInterval(interval);
   }, [timeRemaining, router]);
 
-  const { data: messages, refetch } = useQuery({
+  const { data: messages } = useQuery({
     queryKey: ["messages", roomId],
     queryFn: async () => {
       const res = await client.messages.get({
@@ -102,10 +104,22 @@ export default function Page() {
   useRealtime({
     channels: [roomId],
     events: ["chat.destroy", "chat.message"],
-    onData: ({ event }) => {
+    onData: ({ event, data }) => {
       switch (event) {
         case "chat.message":
-          refetch();
+          queryClient.setQueryData(
+            ["messages", roomId],
+            (old: { messages: (typeof data)[] } | undefined) => {
+              const oldMessages = old?.messages ?? [];
+              if (oldMessages.some((m) => m.id === data.id)) {
+                return old;
+              }
+              return {
+                ...(old ?? { messages: [] }),
+                messages: [...oldMessages, data],
+              };
+            },
+          );
           break;
         case "chat.destroy":
           router.replace("/?destroyed=true");

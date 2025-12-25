@@ -56,11 +56,10 @@ const rooms = new Elysia({ prefix: "/room" })
       await realtime
         .channel(roomId)
         .emit("chat.destroy", { isDestroyed: true });
-      await Promise.all([
-        redis.del(roomId),
-        redis.del(`${ROOM_PREFIX}:${roomId}`),
-        redis.del(`${MESSAGES_PREFIX}:${roomId}`),
-      ]);
+
+      redis.del(`${ROOM_PREFIX}:${roomId}`);
+      redis.del(`${MESSAGES_PREFIX}:${roomId}`);
+      redis.del(roomId);
 
       return { success: true };
     },
@@ -80,8 +79,8 @@ const messages = new Elysia({ prefix: "/messages" })
       const { sender, text } = body;
 
       const roomKey = `${ROOM_PREFIX}:${roomId}`;
-      const roomExists = await redis.exists(roomKey);
-      if (!roomExists) throw new NotFoundError("Room not found");
+      const remaining = await redis.ttl(roomKey);
+      if (remaining <= 0) throw new NotFoundError("Room not found");
 
       const message: Message = {
         id: nanoid(),
@@ -97,11 +96,10 @@ const messages = new Elysia({ prefix: "/messages" })
         token: auth.token,
       });
 
-      await realtime.channel(roomId).emit("chat.message", message);
+      void realtime.channel(roomId).emit("chat.message", message);
 
-      const remaining = await redis.ttl(roomKey);
-      await redis.expire(messageKey, remaining);
-      await redis.expire(roomId, remaining);
+      redis.expire(messageKey, remaining);
+      redis.expire(roomId, remaining);
     },
     {
       query: t.Object({

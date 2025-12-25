@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function getBaseUrl() {
   // Vercel
   if (process.env.NEXT_PUBLIC_BASE_URL) {
-    return `https://${process.env.NEXT_PUBLIC_BASE_URL}`;
+    return `${process.env.NEXT_PUBLIC_BASE_URL}`;
   }
 
   // Local development

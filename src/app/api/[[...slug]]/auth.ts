@@ -28,10 +28,16 @@ export const authMiddleware = new Elysia({ name: "auth" })
       throw new AuthError("No room id provided");
     }
 
-    const redisKey = `${ROOM_PREFIX}${roomId}`;
-    const connected = (await redis.hget(redisKey, "connected")) as string;
+    const redisKey = `${ROOM_PREFIX}:${roomId}`;
+    const connected = (await redis.hget(redisKey, "connected")) as
+      | string[]
+      | null;
 
-    if (connected && !JSON.parse(connected).includes(token)) {
+    if (!connected) {
+      throw new AuthError("Room not found");
+    }
+
+    if (!connected.includes(token)) {
       throw new AuthError("Invalid token");
     }
 
@@ -39,7 +45,7 @@ export const authMiddleware = new Elysia({ name: "auth" })
       auth: {
         roomId,
         token,
-        connected: JSON.parse(connected) as string[],
+        connected,
       },
     };
   });
