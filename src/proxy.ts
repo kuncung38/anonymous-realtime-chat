@@ -50,5 +50,5 @@ export const proxy = async (req: NextRequest) => {
 };
 
 export const config = {
-  matcher: ["/room/:path*", "/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: "/room/:path*",
 };
