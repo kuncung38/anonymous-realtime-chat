@@ -11,6 +11,11 @@ export const proxy = async (req: NextRequest) => {
   const roomId = roomMatch[1];
   const redisKey = `${ROOM_PREFIX}:${roomId}`;
 
+  const existingToken = req.cookies.get(AUTH_TOKEN_KEY)?.value;
+  if (existingToken) {
+    return NextResponse.next();
+  }
+
   const cache = await redis.hgetall<{
     connected: string[];
     createdAt: number;
@@ -22,17 +27,17 @@ export const proxy = async (req: NextRequest) => {
 
   const connected = cache.connected;
 
-  const existingToken = req.cookies.get(AUTH_TOKEN_KEY)?.value;
-  if (existingToken && connected.includes(existingToken)) {
-    return NextResponse.next();
-  }
-
   if (connected.length >= 2) {
     return NextResponse.redirect(new URL("/?error=room-full", req.url));
   }
 
   const response = NextResponse.next();
   const token = nanoid(15);
+  connected.push(token);
+
+  await redis.hset(redisKey, {
+    connected,
+  });
 
   response.cookies.set(AUTH_TOKEN_KEY, token, {
     path: "/",
@@ -41,15 +46,9 @@ export const proxy = async (req: NextRequest) => {
     sameSite: "strict",
   });
 
-  connected.push(token);
-
-  await redis.hset(redisKey, {
-    connected,
-  });
-
   return response;
 };
 
 export const config = {
-  matcher: "/room/:path*",
+  matcher: ["/room/:path*", "/((?!_next/static|_next/image|favicon.ico).*)"],
 };

@@ -1,6 +1,7 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { Loading } from "@/components/loading";
 import { useCreateNewRoom } from "@/hooks/room";
 import { useUsername } from "@/hooks/use-username";
 import { USERNAME_STORAGE_KEY } from "@/utils/const";
@@ -23,7 +24,7 @@ function Home() {
 
   const { username, setUsername } = useUsername();
 
-  const { mutateAsync } = useCreateNewRoom();
+  const { mutateAsync, isPending } = useCreateNewRoom();
 
   const onCreateRoom = async () => {
     localStorage.setItem(USERNAME_STORAGE_KEY, username || generateUsername());
@@ -111,8 +112,9 @@ function Home() {
               type="button"
               className="w-full bg-zinc-100 text-black p-3 text-sm font-bold hover:bg-zinc-50 hover:text-black transition-colors mt-2 cursor-pointer disabled:opacity-50"
               onClick={onCreateRoom}
+              disabled={isPending}
             >
-              CREATE SECURE ROOM
+              {isPending ? <Loading /> : "CREATE SECURE ROOM"}
             </button>
           </div>
         </div>
