@@ -6,14 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getBaseUrl() {
-  // Browser
-  if (typeof window !== "undefined") {
-    return "";
-  }
-
   // Vercel
-  if (Bun.env.VERCEL_URL) {
-    return `https://${Bun.env.VERCEL_URL}`;
+  if (process.env.NEXT_PUBLIC_BASE_URL) {
+    return `https://${process.env.NEXT_PUBLIC_BASE_URL}`;
   }
 
   // Local development
