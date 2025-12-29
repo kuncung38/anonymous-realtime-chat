@@ -15,18 +15,21 @@ export const useRoomAccess = (roomId: string) =>
       const res = await client.room.get({
         query: { roomId },
       });
-      
+
       if (res.error) {
-        const errorMessage = typeof res.error === 'object' && res.error !== null && 'error' in res.error 
-          ? String(res.error.error)
-          : 'Access denied';
+        const errorMessage =
+          typeof res.error === "object" &&
+          res.error !== null &&
+          "error" in res.error
+            ? String(res.error.error)
+            : "Access denied";
         throw new Error(errorMessage);
       }
-      
+
       if (!res.data) {
         throw new Error("Access denied");
       }
-      
+
       return res.data;
     },
     retry: false,

@@ -1,12 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useUsername } from "@/hooks/use-username";
-import { useRoomAccess, useDestroyRoom, useRoomTtl } from "@/hooks/room";
 import { useMessages, useSendMessage } from "@/hooks/messages";
-import { client } from "@/lib/client";
+import { useDestroyRoom, useRoomAccess, useRoomTtl } from "@/hooks/room";
+import { useUsername } from "@/hooks/use-username";
 import { useRealtime } from "@/lib/realtime-client";
 import { cn } from "@/lib/utils";
 import { formatTime, formatTimeRemaining } from "@/utils/formatter";
@@ -117,7 +116,9 @@ export default function Page() {
   if (!accessData) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-zinc-600 text-sm font-mono">Validating room access...</div>
+        <div className="text-zinc-600 text-sm font-mono">
+          Validating room access...
+        </div>
       </div>
     );
   }

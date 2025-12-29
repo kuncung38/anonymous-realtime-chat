@@ -16,7 +16,15 @@ export const useMessages = (roomId: string) =>
 
 export const useSendMessage = () =>
   useMutation({
-    mutationFn: async ({ text, sender, roomId }: { text: string; sender: string; roomId: string }) => {
+    mutationFn: async ({
+      text,
+      sender,
+      roomId,
+    }: {
+      text: string;
+      sender: string;
+      roomId: string;
+    }) => {
       await client.messages.post(
         {
           sender,
