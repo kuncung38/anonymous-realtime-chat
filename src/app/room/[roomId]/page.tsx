@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useUsername } from "@/hooks/use-username";
+import { useRoomAccess, useDestroyRoom, useRoomTtl } from "@/hooks/room";
+import { useMessages, useSendMessage } from "@/hooks/messages";
 import { client } from "@/lib/client";
 import { useRealtime } from "@/lib/realtime-client";
 import { cn } from "@/lib/utils";
@@ -24,18 +26,7 @@ export default function Page() {
   const [copyStatus, setCopyStatus] = useState("COPY");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
-  const { data: ttlData } = useQuery({
-    queryKey: ["ttl", roomId],
-    queryFn: async () => {
-      const res = await client.room.ttl.get({
-        query: {
-          roomId,
-        },
-      });
-
-      return res.data;
-    },
-  });
+  const { data: ttlData } = useRoomTtl(roomId);
 
   useEffect(() => {
     if (ttlData?.ttl) {
@@ -66,37 +57,13 @@ export default function Page() {
     return () => clearInterval(interval);
   }, [timeRemaining, router]);
 
-  const { data: messages } = useQuery({
-    queryKey: ["messages", roomId],
-    queryFn: async () => {
-      const res = await client.messages.get({
-        query: {
-          roomId,
-        },
-      });
-      return res.data;
-    },
-  });
+  const { data: messages } = useMessages(roomId);
 
-  const { mutate: sendMessage, isPending } = useMutation({
-    mutationFn: async (text: string) => {
-      await client.messages.post(
-        {
-          sender: username,
-          text,
-        },
-        {
-          query: {
-            roomId,
-          },
-        },
-      );
-    },
-  });
+  const { mutate: sendMessage, isPending } = useSendMessage();
 
   const handleSendMessage = () => {
     if (input.trim() === "") return;
-    sendMessage(input);
+    sendMessage({ text: input, sender: username, roomId });
     setInput("");
     inputRef.current?.focus();
   };
@@ -128,15 +95,32 @@ export default function Page() {
     },
   });
 
-  const { mutate: destroyRoom } = useMutation({
-    mutationFn: async () => {
-      await client.room.delete(null, {
-        query: {
-          roomId,
-        },
-      });
-    },
-  });
+  const { mutate: destroyRoom } = useDestroyRoom();
+
+  const { data: accessData, error: accessError } = useRoomAccess(roomId);
+
+  useEffect(() => {
+    if (accessError) {
+      const error = accessError.message;
+      if (error === "room-busy") {
+        router.push("/?error=room-busy");
+      } else if (error === "room-not-found") {
+        router.push("/?error=room-not-found");
+      } else if (error === "room-full") {
+        router.push("/?error=room-full");
+      } else {
+        router.push("/?error=access-denied");
+      }
+    }
+  }, [accessError, router]);
+
+  if (!accessData) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-zinc-600 text-sm font-mono">Validating room access...</div>
+      </div>
+    );
+  }
 
   const copyLink = () => {
     const url = window.location.href;
@@ -187,7 +171,7 @@ export default function Page() {
         <button
           type="button"
           className="text-xs bg-zinc-800 hover:bg-red-600 px-3 py-1.5 rounded text-zinc-400 hover:text-white font-bold transition-all group flex items-center gap-2 disabled:opacity-50 "
-          onClick={() => destroyRoom()}
+          onClick={() => destroyRoom(roomId)}
         >
           <span className="group-hover:animate-pulse">💣</span>
           DESTROY NOW
