@@ -10,6 +10,7 @@ export const useMessages = (roomId: string) =>
           roomId,
         },
       });
+
       return res.data;
     },
   });

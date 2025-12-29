@@ -39,7 +39,8 @@ const rooms = new Elysia({ prefix: "/room" })
       const connected = cache.connected ?? [];
 
       if (existingToken && connected.includes(existingToken)) {
-        return { success: true, token: existingToken };
+        const ttl = await redis.ttl(redisKey);
+        return { ttl: ttl > 0 ? ttl : 0 };
       }
 
       if (connected.length >= 2) {
@@ -62,28 +63,13 @@ const rooms = new Elysia({ prefix: "/room" })
         sameSite: "strict",
       });
 
-      return { success: true, token };
+      const ttl = await redis.ttl(redisKey);
+      return { ttl: ttl > 0 ? ttl : 0 };
     },
     {
       query: t.Object({
         roomId: t.String(),
       }),
-      error: ({ error, set }) => {
-        if (error instanceof NotFoundError) {
-          set.status = 404;
-          return { error: "room-not-found" };
-        }
-        if (error instanceof Error && error.message === "room-busy") {
-          set.status = 429;
-          return { error: "room-busy" };
-        }
-        if (error instanceof Error && error.message === "room-full") {
-          set.status = 403;
-          return { error: "room-full" };
-        }
-        set.status = 500;
-        return { error: "internal-error" };
-      },
     },
   )
   .post(
@@ -119,20 +105,6 @@ const rooms = new Elysia({ prefix: "/room" })
     },
   )
   .use(authMiddleware)
-  .get(
-    "/ttl",
-    async ({ query }) => {
-      const { roomId } = query;
-      const key = `${ROOM_PREFIX}:${roomId}`;
-      const ttl = await redis.ttl(key);
-      return { ttl: ttl > 0 ? ttl : 0 };
-    },
-    {
-      query: t.Object({
-        roomId: t.String(),
-      }),
-    },
-  )
   .delete(
     "/",
     async ({ query }) => {
@@ -192,22 +164,6 @@ const messages = new Elysia({ prefix: "/messages" })
         roomId: roomIdSchema,
       }),
       body: messageSchema,
-      error: ({ error, set }) => {
-        if (error instanceof NotFoundError) {
-          set.status = 404;
-          return { error: "Room not found" };
-        }
-        if (
-          error instanceof Error &&
-          (error.message === "No token provided" ||
-            error.message === "Invalid token")
-        ) {
-          set.status = 401;
-          return { error: "Unauthorized" };
-        }
-        set.status = 500;
-        return { error: "Internal error" };
-      },
     },
   )
   .get(
@@ -225,28 +181,19 @@ const messages = new Elysia({ prefix: "/messages" })
     },
     {
       query: t.Object({ roomId: t.String() }),
-      error: ({ error, set }) => {
-        if (error instanceof NotFoundError) {
-          set.status = 404;
-          return { error: "Room not found" };
-        }
-        if (
-          error instanceof Error &&
-          (error.message === "No token provided" ||
-            error.message === "Invalid token")
-        ) {
-          set.status = 401;
-          return { error: "Unauthorized" };
-        }
-        set.status = 500;
-        return { error: "Internal error" };
-      },
     },
   );
 
-const app = new Elysia({ prefix: "/api" }).use(rooms).use(messages);
-
-export type App = typeof app;
+export const app = new Elysia({ prefix: "/api" })
+  .use(rooms)
+  .use(messages)
+  .onError(({ error }) => {
+    if (error instanceof Error) {
+      return {
+        error: error.message,
+      };
+    }
+  });
 
 export const DELETE = app.fetch;
 export const GET = app.fetch;

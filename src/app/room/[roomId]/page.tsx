@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useMessages, useSendMessage } from "@/hooks/messages";
-import { useDestroyRoom, useRoomAccess, useRoomTtl } from "@/hooks/room";
+import { useDestroyRoom, useRoomAccess } from "@/hooks/room";
 import { useUsername } from "@/hooks/use-username";
 import { useRealtime } from "@/lib/realtime-client";
 import { cn } from "@/lib/utils";
@@ -21,11 +21,12 @@ export default function Page() {
 
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const [copyStatus, setCopyStatus] = useState("COPY");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
-  const { data: ttlData } = useRoomTtl(roomId);
+  const { data: ttlData, error: accessError } = useRoomAccess(roomId);
 
   useEffect(() => {
     if (ttlData?.ttl) {
@@ -86,6 +87,13 @@ export default function Page() {
               };
             },
           );
+          // Auto-scroll to latest message
+          setTimeout(() => {
+            messagesContainerRef.current?.scrollTo({
+              top: messagesContainerRef.current.scrollHeight,
+              behavior: "smooth",
+            });
+          }, 100);
           break;
         case "chat.destroy":
           router.replace("/?destroyed=true");
@@ -95,8 +103,6 @@ export default function Page() {
   });
 
   const { mutate: destroyRoom } = useDestroyRoom();
-
-  const { data: accessData, error: accessError } = useRoomAccess(roomId);
 
   useEffect(() => {
     if (accessError) {
@@ -113,7 +119,7 @@ export default function Page() {
     }
   }, [accessError, router]);
 
-  if (!accessData) {
+  if (!ttlData) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-zinc-600 text-sm font-mono">
@@ -179,7 +185,10 @@ export default function Page() {
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin"
+      >
         {!messages?.messages.length && (
           <div className="flex items-center justify-center h-full">
             <p className="text-zinc-600 text-sm font-mono">
@@ -189,9 +198,20 @@ export default function Page() {
         )}
 
         {messages?.messages.map((m) => (
-          <div key={m.id} className="flex flex-col items-start">
-            <div className="max-w[80%] group">
-              <div className="flex items-baseline gap-3 mb-1">
+          <div
+            key={m.id}
+            className={cn(
+              "flex flex-col",
+              m.sender === username ? "items-end" : "items-start",
+            )}
+          >
+            <div className="max-w-[80%] group">
+              <div
+                className={cn(
+                  "flex items-baseline gap-3 mb-1",
+                  m.sender === username ? "flex-row-reverse" : "flex-row",
+                )}
+              >
                 <span
                   className={cn(
                     "text-xs font-bold",
@@ -206,9 +226,18 @@ export default function Page() {
                 </span>
               </div>
 
-              <p className="text-sm text-zinc-300 leading-relaxed break-all">
-                {m.text}
-              </p>
+              <div
+                className={cn(
+                  "rounded-lg px-3 py-2",
+                  m.sender === username
+                    ? "bg-green-600/20 border border-green-600/30"
+                    : "bg-zinc-800 border border-zinc-700",
+                )}
+              >
+                <p className="text-sm text-zinc-300 leading-relaxed break-all">
+                  {m.text}
+                </p>
+              </div>
             </div>
           </div>
         ))}

@@ -35,20 +35,6 @@ export const useRoomAccess = (roomId: string) =>
     retry: false,
   });
 
-export const useRoomTtl = (roomId: string) =>
-  useQuery({
-    queryKey: ["ttl", roomId],
-    queryFn: async () => {
-      const res = await client.room.ttl.get({
-        query: {
-          roomId,
-        },
-      });
-
-      return res.data;
-    },
-  });
-
 export const useDestroyRoom = () =>
   useMutation({
     mutationFn: async (roomId: string) => {
