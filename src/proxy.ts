@@ -10,43 +10,58 @@ export const proxy = async (req: NextRequest) => {
 
   const roomId = roomMatch[1];
   const redisKey = `${ROOM_PREFIX}:${roomId}`;
+  const lockKey = `${ROOM_PREFIX}:${roomId}:lock`;
 
   const existingToken = req.cookies.get(AUTH_TOKEN_KEY)?.value;
-  if (existingToken) {
-    return NextResponse.next();
-  }
 
-  const cache = await redis.hgetall<{
-    connected: string[];
-    createdAt: number;
-  }>(redisKey);
-
-  if (!cache) {
-    return NextResponse.redirect(new URL("/?error=room-not-found", req.url));
-  }
-
-  const connected = cache.connected;
-
-  if (connected.length >= 2) {
-    return NextResponse.redirect(new URL("/?error=room-full", req.url));
-  }
-
-  const response = NextResponse.next();
-  const token = nanoid(15);
-  connected.push(token);
-
-  await redis.hset(redisKey, {
-    connected,
+  const lock = await redis.set(lockKey, "1", {
+    nx: true,
+    px: 1000,
   });
 
-  response.cookies.set(AUTH_TOKEN_KEY, token, {
-    path: "/",
-    httpOnly: true,
-    secure: Bun.env.NODE_ENV === "production",
-    sameSite: "strict",
-  });
+  if (!lock) {
+    return NextResponse.redirect(new URL("/?error=room-busy", req.url));
+  }
 
-  return response;
+  try {
+    const cache = await redis.hgetall<{
+      connected: string[];
+      createdAt: number;
+    }>(redisKey);
+
+    if (!cache) {
+      return NextResponse.redirect(new URL("/?error=room-not-found", req.url));
+    }
+
+    const connected = cache.connected ?? [];
+
+    if (existingToken && connected.includes(existingToken)) {
+      return NextResponse.next();
+    }
+
+    if (connected.length >= 2) {
+      return NextResponse.redirect(new URL("/?error=room-full", req.url));
+    }
+
+    const token = nanoid(15);
+    const updatedConnected = [...connected, token];
+
+    await redis.hset(redisKey, {
+      connected: updatedConnected,
+    });
+
+    const response = NextResponse.next();
+    response.cookies.set(AUTH_TOKEN_KEY, token, {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    return response;
+  } finally {
+    await redis.del(lockKey);
+  }
 };
 
 export const config = {
